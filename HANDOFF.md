@@ -5,18 +5,19 @@ reads this automatically at the start of each session and updates it
 automatically before stopping if the working tree has changes.
 
 ## Last session
-- 2026-07-16 — Fixed a coaching-prompt bug the user flagged as making the AI coach "feel copy and paste" / "cringe."
-  - Root cause: `lib/anthropic.ts`'s `buildSystemPrompt`, in the relapse-handling rule, told the model to quote the user's onboarding `why_text` back **verbatim, in full** every single time it detected a relapse pattern — so if `why_text` names a specific person, the coach mechanically recited the exact same paragraph turn after turn.
-  - Fix: rule now says to reference the stakes in the coach's own words, pull one specific detail (not the whole block), and never phrase it the same way twice in a row.
-  - `npx tsc --noEmit` and `npm run lint` both clean. Not yet tested against a live conversation (needs migration 0009 applied + a real check-in to observe over multiple relapse-flagged turns).
+- 2026-07-16 — Continued fixing the AI coach "feels copy-paste/cringe" complaint from earlier this session, with a real end-to-end test.
+  - First fix (already committed as 9f0fbb7): stopped the coach from quoting `why_text` back verbatim on every relapse.
+  - User then pointed out the *remaining* problem via a live sim: even paraphrased, forcing a `why_text` detail into every relapse reply produces non-sequiturs (e.g. "eating cookies" tied to "your sister's debt" — no real connection).
+  - Second fix (this commit, `lib/anthropic.ts` `buildSystemPrompt` relapse rule): the coach now defaults to staying on the actual pattern/rationalization in front of the user, and only reaches for the bigger-picture "why" when there's a genuine direct link to the moment — not as a mandatory move every time.
+  - Verified via `scripts/test-checkin.local.ts` (gitignored, real Anthropic API call) — reran the same relapse scenario before/after; second version stayed on-topic (mom's cooking, the "doesn't count" rationalization, the Wednesday counter-example) instead of detouring into unrelated stakes.
+  - Known minor deviation observed, not yet acted on: one reply in testing ended without the mandatory closing question (prompt rule says every non-closing reply ends in exactly one question). User was asked whether to tighten that instruction further — no answer yet.
 
 ## Current state
-- **Migration `supabase/migrations/0009_stat_points_and_shop.sql` still needs to be applied to the live Supabase project** (carried over from last session — level-up stat points + coin shop for cosmetics/XP potions). Shop/stat-point routes will error until it's run.
-- Game system built last session: task completion still auto-bumps tagged stats; level-ups bank free stat points (`user_stats.unspent_stat_points`) spent via `/api/character/allocate-stat`; `/shop` sells cosmetics (equip via `/api/character/equip`, rendered as emoji on `CharacterAvatar`) and XP potions (`/api/shop/purchase`) with coins.
-- App also has onboarding, daily check-ins, tasks, coins, character system (Supabase-backed), Anthropic SDK-driven coach. Auth middleware in `proxy.ts` gates all routes except `/login` and `/auth/callback`.
-- `.env.local.example` documents required keys: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `ANTHROPIC_API_KEY`.
-- `node_modules/` is not committed — run `npm install` after `git pull` if `package.json`/`package-lock.json` changed.
+- **Migration `supabase/migrations/0009_stat_points_and_shop.sql` still needs to be applied to the live Supabase project** (carried over — level-up stat points + coin shop). Shop/stat-point routes will error until it's run.
+- `scripts/test-checkin.local.ts` exists locally (gitignored, matches the `scripts/*.local.ts` convention) — a two-turn relapse-scenario repro script useful for testing further coach prompt tweaks without going through the browser. Run with `node --env-file=.env.local --import tsx scripts/test-checkin.local.ts`.
+- Game system (stat points, shop) and coach prompt both built/tuned this and last session — no other in-progress work.
 
 ## Next
+- Ask the user whether to tighten the "always end with a question" rule in `buildSystemPrompt` (they hadn't answered when this session ended).
 - Apply migration 0009, then test the game system end-to-end (see previous handoff notes).
-- User should try a few real check-in conversations to confirm the coach no longer feels repetitive/scripted; if it still does, look beyond the verbatim-quote bug — e.g. the "exactly one question every reply" structural rule in `buildSystemPrompt` could be a secondary contributor worth revisiting.
+- Consider testing the coach prompt against a `win` and `miss` scenario too (only `relapse` has been manually verified since the fixes).
