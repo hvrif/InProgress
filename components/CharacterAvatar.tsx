@@ -47,9 +47,13 @@ function shade(hex: string, amount: number): string {
 
 export function CharacterAvatar({
   appearance,
+  accessoryEmoji,
+  petEmoji,
   className,
 }: {
   appearance: CharacterAppearance;
+  accessoryEmoji?: string | null;
+  petEmoji?: string | null;
   className?: string;
 }) {
   const { torso: torsoWidth, arm: armWidth, leg: legWidth } = BUILD_WIDTHS[appearance.bodyBuild];
@@ -221,6 +225,18 @@ export function CharacterAvatar({
       )}
       {appearance.facialHair === "beard" && (
         <ellipse cx={CX} cy={HEAD_CY + 17} rx={17} ry={11} fill={appearance.hairColor} stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
+      )}
+
+      {/* shop cosmetics: emoji badges, not fitted geometry — consistent with the app's emoji-driven style elsewhere (class icon, badges) */}
+      {accessoryEmoji && (
+        <text x={CX + HEAD_R + 6} y={HEAD_CY - HEAD_R} fontSize={18} textAnchor="middle" dominantBaseline="middle">
+          {accessoryEmoji}
+        </text>
+      )}
+      {petEmoji && (
+        <text x={leftLegX - 10} y={LEG_BOTTOM - 6} fontSize={20} textAnchor="middle" dominantBaseline="middle">
+          {petEmoji}
+        </text>
       )}
     </svg>
   );

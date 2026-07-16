@@ -8,6 +8,7 @@ const NAV_LINKS = [
   { href: "/chat", label: "Chat" },
   { href: "/tasks", label: "Tasks" },
   { href: "/character", label: "Character" },
+  { href: "/shop", label: "Shop" },
 ] as const;
 
 export function AppHeader({
@@ -15,7 +16,7 @@ export function AppHeader({
   active,
 }: {
   stats: UserStats | null;
-  active: "/" | "/chat" | "/tasks" | "/character" | null;
+  active: "/" | "/chat" | "/tasks" | "/character" | "/shop" | null;
 }) {
   return (
     <header className="sticky top-0 z-10 border-b border-neutral-900 bg-neutral-950/90 px-4 py-3 backdrop-blur">

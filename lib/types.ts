@@ -46,6 +46,7 @@ export interface UserStats {
   last_log_date: string | null;
   updated_at: string;
   coin_balance: number;
+  unspent_stat_points: number;
 }
 
 // One row per day-finalization or shop purchase — the full history behind
@@ -138,3 +139,28 @@ export interface Character {
 }
 
 export type CharacterInsert = Pick<Character, "user_id" | "name" | "appearance">;
+
+// The shop's catalog — a shared, read-only table (see 0009 migration).
+// xp_boost items have `xp_amount` set and are consumed immediately on
+// purchase; accessory/pet items have `xp_amount: null` and go to inventory.
+export type ShopItemCategory = "accessory" | "pet" | "xp_boost";
+
+export interface ShopItem {
+  id: string;
+  key: string;
+  name: string;
+  description: string;
+  category: ShopItemCategory;
+  emoji: string;
+  price_coins: number;
+  xp_amount: number | null;
+  sort_order: number;
+}
+
+// One row per cosmetic a user owns. Never written for xp_boost purchases.
+export interface InventoryEntry {
+  id: string;
+  user_id: string;
+  item_id: string;
+  acquired_at: string;
+}

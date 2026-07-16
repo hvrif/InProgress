@@ -46,13 +46,14 @@ const SAMPLE_PROFILE: Profile = {
 
 const SAMPLE_STATS_BASE: Pick<
   UserStats,
-  "total_xp" | "level" | "updated_at" | "user_id" | "coin_balance"
+  "total_xp" | "level" | "updated_at" | "user_id" | "coin_balance" | "unspent_stat_points"
 > = {
   user_id: "test-user",
   total_xp: 480,
   level: 3,
   updated_at: new Date().toISOString(),
   coin_balance: 60,
+  unspent_stat_points: 0,
 };
 
 function makeTaskCompletion(

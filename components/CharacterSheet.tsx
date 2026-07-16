@@ -54,7 +54,15 @@ const CLASS_STYLES: Record<
   },
 };
 
-export function CharacterSheet({ character }: { character: Character }) {
+export function CharacterSheet({
+  character,
+  accessoryEmoji,
+  petEmoji,
+}: {
+  character: Character;
+  accessoryEmoji?: string | null;
+  petEmoji?: string | null;
+}) {
   const characterClass = deriveCharacterClass(character);
   const power = powerLevel(character);
   const rank = rankForPower(power);
@@ -69,7 +77,12 @@ export function CharacterSheet({ character }: { character: Character }) {
           <div
             className={`absolute inset-x-0 top-4 mx-auto h-32 w-32 rounded-full ${style.glow} opacity-40 blur-2xl animate-[aura-pulse_3s_ease-in-out_infinite]`}
           />
-          <CharacterAvatar appearance={character.appearance} className="relative h-48 w-44" />
+          <CharacterAvatar
+            appearance={character.appearance}
+            accessoryEmoji={accessoryEmoji}
+            petEmoji={petEmoji}
+            className="relative h-48 w-44"
+          />
           <span className="absolute -bottom-1 -right-4 text-3xl animate-[float-idle_2.5s_ease-in-out_infinite]">
             {characterClass.emoji}
           </span>

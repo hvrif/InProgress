@@ -4,6 +4,10 @@ export const XP_FOR_CHECKING_IN = 10;
 export const XP_PER_TASK_COMPLETED = 15;
 export const XP_PER_LEVEL = 200;
 
+// Free stat points banked each time total_xp crosses a level threshold —
+// spent one at a time via /api/character/allocate-stat.
+export const STAT_POINTS_PER_LEVEL = 3;
+
 // A day only counts toward the streak if at least this fraction of active
 // tasks got done — partial credit on XP, but the streak needs real
 // consistency, not just "did something."
@@ -37,6 +41,7 @@ export interface XpResult {
     "current_streak" | "longest_streak" | "total_xp" | "level" | "last_log_date"
   >;
   hitMilestone: number | null;
+  statPointsEarned: number;
 }
 
 /**
@@ -50,7 +55,7 @@ export function computeXp(
   logDate: string,
   prevStats: Pick<
     UserStats,
-    "current_streak" | "longest_streak" | "total_xp" | "last_log_date"
+    "current_streak" | "longest_streak" | "total_xp" | "level" | "last_log_date"
   >,
 ): XpResult {
   const completionRate = totalCount > 0 ? completedCount / totalCount : 0;
@@ -75,6 +80,8 @@ export function computeXp(
 
   const totalXp = prevStats.total_xp + xpEarned;
   const longestStreak = Math.max(prevStats.longest_streak, currentStreak);
+  const newLevel = levelForXp(totalXp);
+  const statPointsEarned = Math.max(0, newLevel - prevStats.level) * STAT_POINTS_PER_LEVEL;
 
   return {
     xpEarned,
@@ -83,9 +90,10 @@ export function computeXp(
       current_streak: currentStreak,
       longest_streak: longestStreak,
       total_xp: totalXp,
-      level: levelForXp(totalXp),
+      level: newLevel,
       last_log_date: logDate,
     },
     hitMilestone,
+    statPointsEarned,
   };
 }

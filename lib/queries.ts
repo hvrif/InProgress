@@ -1,11 +1,12 @@
 import type { createClient } from "@/lib/supabase/server";
-import { computeXp } from "@/lib/xp";
+import { computeXp, levelForXp, STAT_POINTS_PER_LEVEL } from "@/lib/xp";
 import { applyCoinDelta, computeCoinDelta } from "@/lib/coins";
 import { applyStatDelta, STAT_DELTA_PER_TASK } from "@/lib/character";
 import { generateDayOpening, type RecentLogWithTasks } from "@/lib/anthropic";
 import type {
   DailyLog,
   Profile,
+  ShopItem,
   StatCategory,
   Task,
   TaskCompletion,
@@ -189,6 +190,7 @@ export async function finalizeDayLog(
     .update({
       ...xpResult.newStats,
       coin_balance: newCoinBalance,
+      unspent_stat_points: stats.unspent_stat_points + xpResult.statPointsEarned,
       updated_at: new Date().toISOString(),
     })
     .eq("user_id", userId);
@@ -380,4 +382,124 @@ async function bumpStatForTask(
     .from("characters")
     .update({ [statCategory]: next })
     .eq("user_id", userId);
+}
+
+export interface PurchaseResult {
+  item: ShopItem;
+  newCoinBalance: number;
+  statPointsEarned: number;
+}
+
+/**
+ * Buys one shop item: debits coins, records the coin_ledger entry, and then
+ * either (a) grants total_xp/level/stat points immediately for an xp_boost,
+ * consumed on the spot, or (b) adds a permanent inventory row for a
+ * cosmetic (accessory/pet), rejecting a repeat purchase of the same item.
+ */
+export async function purchaseShopItem(
+  supabase: SupabaseServerClient,
+  userId: string,
+  itemKey: string,
+): Promise<PurchaseResult> {
+  const { data: itemRow } = await supabase
+    .from("shop_items")
+    .select("*")
+    .eq("key", itemKey)
+    .maybeSingle();
+  if (!itemRow) {
+    throw new Error("Item not found");
+  }
+  const item = itemRow as ShopItem;
+
+  const { data: statsRow } = await supabase
+    .from("user_stats")
+    .select("*")
+    .eq("user_id", userId)
+    .single();
+  const stats = statsRow as UserStats;
+
+  if (stats.coin_balance < item.price_coins) {
+    throw new Error("Not enough coins");
+  }
+
+  if (item.category !== "xp_boost") {
+    const { data: existing } = await supabase
+      .from("inventory")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("item_id", item.id)
+      .maybeSingle();
+    if (existing) {
+      throw new Error("Already owned");
+    }
+  }
+
+  const newCoinBalance = applyCoinDelta(stats.coin_balance, -item.price_coins);
+  const update: Record<string, number | string> = {
+    coin_balance: newCoinBalance,
+    updated_at: new Date().toISOString(),
+  };
+
+  let statPointsEarned = 0;
+  if (item.category === "xp_boost" && item.xp_amount) {
+    const newTotalXp = stats.total_xp + item.xp_amount;
+    const newLevel = levelForXp(newTotalXp);
+    statPointsEarned = Math.max(0, newLevel - stats.level) * STAT_POINTS_PER_LEVEL;
+    update.total_xp = newTotalXp;
+    update.level = newLevel;
+    update.unspent_stat_points = stats.unspent_stat_points + statPointsEarned;
+  }
+
+  await supabase.from("user_stats").update(update).eq("user_id", userId);
+
+  await supabase.from("coin_ledger").insert({
+    user_id: userId,
+    daily_log_id: null,
+    delta: -item.price_coins,
+    reason: "shop_purchase",
+  });
+
+  if (item.category !== "xp_boost") {
+    await supabase.from("inventory").insert({ user_id: userId, item_id: item.id });
+  }
+
+  return { item, newCoinBalance, statPointsEarned };
+}
+
+/** Spends one banked level-up stat point on the chosen stat (+STAT_DELTA_PER_TASK, same unit a completed task grants). */
+export async function allocateStatPoint(
+  supabase: SupabaseServerClient,
+  userId: string,
+  stat: StatCategory,
+): Promise<{ newValue: number; remainingPoints: number }> {
+  const { data: statsRow } = await supabase
+    .from("user_stats")
+    .select("unspent_stat_points")
+    .eq("user_id", userId)
+    .single();
+  const stats = statsRow as { unspent_stat_points: number } | null;
+  if (!stats || stats.unspent_stat_points <= 0) {
+    throw new Error("No stat points to allocate");
+  }
+
+  const { data: characterRow } = await supabase
+    .from("characters")
+    .select(stat)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (!characterRow) {
+    throw new Error("Create a character first");
+  }
+
+  const current = (characterRow as unknown as Record<StatCategory, number>)[stat];
+  const newValue = applyStatDelta(current, STAT_DELTA_PER_TASK);
+  const remainingPoints = stats.unspent_stat_points - 1;
+
+  await supabase.from("characters").update({ [stat]: newValue }).eq("user_id", userId);
+  await supabase
+    .from("user_stats")
+    .update({ unspent_stat_points: remainingPoints })
+    .eq("user_id", userId);
+
+  return { newValue, remainingPoints };
 }
