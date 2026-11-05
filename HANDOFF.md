@@ -5,19 +5,21 @@ reads this automatically at the start of each session and updates it
 automatically before stopping if the working tree has changes.
 
 ## Last session
-- 2026-07-16 — Continued fixing the AI coach "feels copy-paste/cringe" complaint from earlier this session, with a real end-to-end test.
-  - First fix (already committed as 9f0fbb7): stopped the coach from quoting `why_text` back verbatim on every relapse.
-  - User then pointed out the *remaining* problem via a live sim: even paraphrased, forcing a `why_text` detail into every relapse reply produces non-sequiturs (e.g. "eating cookies" tied to "your sister's debt" — no real connection).
-  - Second fix (this commit, `lib/anthropic.ts` `buildSystemPrompt` relapse rule): the coach now defaults to staying on the actual pattern/rationalization in front of the user, and only reaches for the bigger-picture "why" when there's a genuine direct link to the moment — not as a mandatory move every time.
-  - Verified via `scripts/test-checkin.local.ts` (gitignored, real Anthropic API call) — reran the same relapse scenario before/after; second version stayed on-topic (mom's cooking, the "doesn't count" rationalization, the Wednesday counter-example) instead of detouring into unrelated stakes.
-  - Known minor deviation observed, not yet acted on: one reply in testing ended without the mandatory closing question (prompt rule says every non-closing reply ends in exactly one question). User was asked whether to tighten that instruction further — no answer yet.
+- 2026-11-05 (Windows) — Audited the project and ran it in Chrome. Debugged login: first `Failed to fetch` (Supabase URL in `.env.local` pointed at a host that didn't resolve), then a red `{}` (Supabase `500 Error sending confirmation email` from `/auth/v1/otp`; the project is reachable and the key is valid, but it can't send the magic-link email — likely the built-in mailer rate limit or a bad SMTP config).
+- Added a dev-only login shortcut: `app/auth/dev/route.ts` (+ `/auth/dev` in `proxy.ts` PUBLIC_PATHS, two new vars in `.env.local.example`). It mints a real session for one fixed user via the admin `generateLink` + `verifyOtp`, with no email. Returns 404 unless `NODE_ENV=development`. `/login` is unchanged. **Not yet tested** (needs the service role key).
+- Earlier (2026-07-16, Mac) — Tuned the AI coach relapse replies in `lib/anthropic.ts` `buildSystemPrompt`: stopped quoting `why_text` verbatim, and now stays on the actual pattern/rationalization unless the "why" genuinely connects to the moment. Verified with `scripts/test-checkin.local.ts` (gitignored, real Anthropic call). One reply in testing skipped the mandatory closing question; user was asked whether to tighten that rule — no answer yet.
 
 ## Current state
-- **Migration `supabase/migrations/0009_stat_points_and_shop.sql` still needs to be applied to the live Supabase project** (carried over — level-up stat points + coin shop). Shop/stat-point routes will error until it's run.
-- `scripts/test-checkin.local.ts` exists locally (gitignored, matches the `scripts/*.local.ts` convention) — a two-turn relapse-scenario repro script useful for testing further coach prompt tweaks without going through the browser. Run with `node --env-file=.env.local --import tsx scripts/test-checkin.local.ts`.
-- Game system (stat points, shop) and coach prompt both built/tuned this and last session — no other in-progress work.
+- Next.js 16 / React 19 / Tailwind 4 app is built out: auth (magic link), onboarding chat, daily check-ins, tasks, coins, character system, emergency support chat, plus stat points and a coin shop.
+- Dev server runs (`npm run dev`); unauthenticated visits redirect to `/login`. Everything behind login is unverified on Windows. RLS is on all tables (`auth.uid()`), so a real Supabase session is required.
+- **Migration `0009_stat_points_and_shop.sql` still needs to be applied to the live Supabase project** (shop/stat-point routes error until then). Migrations 0001–0008 are also unverified on the project in `.env.local`.
+- Supabase project in `.env.local` is `ynblivsqwvfoeezuydqc` — NOT visible to the Supabase MCP account (which only lists `adkx…` and `kmzg…`), so migrations can't be checked/applied from the MCP.
+- `scripts/test-checkin.local.ts` (gitignored) is a two-turn relapse repro: `node --env-file=.env.local --import tsx scripts/test-checkin.local.ts`.
 
 ## Next
-- Ask the user whether to tighten the "always end with a question" rule in `buildSystemPrompt` (they hadn't answered when this session ended).
-- Apply migration 0009, then test the game system end-to-end (see previous handoff notes).
-- Consider testing the coach prompt against a `win` and `miss` scenario too (only `relapse` has been manually verified since the fixes).
+1. In `.env.local` (not committed) add `DEV_LOGIN_EMAIL=<your email>` and `SUPABASE_SERVICE_ROLE_KEY=<secret key from Supabase → Project Settings → API Keys>`, restart `npm run dev`, open `http://localhost:3000/auth/dev`.
+2. Confirm migrations 0001–0009 are applied to the `ynbl…` project.
+3. Click through onboarding, check-in, tasks, coins, shop, character pages and fix what breaks.
+4. Make `app/login/page.tsx` show a real error message (the error text can be empty -> red `{}`), and fix the email sending (SMTP / rate limit) before shipping.
+5. Ask whether to tighten the "always end with a question" coach rule; test the coach on `win` and `miss` scenarios too.
+6. Run `npm run build` + lint to check health.
